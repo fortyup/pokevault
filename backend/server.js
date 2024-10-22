@@ -1,16 +1,28 @@
 const express = require('express');
-const cors = require('cors'); // Importer le middleware CORS
+const cors = require('cors');
+const axios = require('axios');
+require('dotenv').config(); // Charger les variables d'environnement
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+const API_KEY = process.env.API_KEY; // Récupérer la clé d'API depuis le fichier .env
 
-app.use(cors()); // Utiliser CORS pour autoriser les requêtes depuis le frontend
+app.use(cors());
 
-// Définir un endpoint qui répond à une requête GET
-app.get('/', (req, res) => {
-  res.send('Pokevault is under construction!'); // Message à envoyer au frontend
+app.get('/api/card/:id', async (req, res) => {
+    try {
+        const cardId = req.params.id;
+        const response = await axios.get(`https://api.pokemontcg.io/v2/cards/${cardId}`, {
+            headers: {
+                'X-Api-Key': API_KEY // Utiliser la clé d'API dans l'en-tête de la requête
+            }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Démarrer le serveur
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });
