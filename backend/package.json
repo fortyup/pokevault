@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "brew services start mongodb-community@7.0 && node server.js",
+    "stop": "brew services stop mongodb-community@7.0",
     "sync": "node sync-initial.js",
-    "dev": "nodemon server.js",
+    "dev": "brew services start mongodb-community@7.0 && nodemon server.js",
     "manage": "node manage-cards.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
