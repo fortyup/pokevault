@@ -92,6 +92,7 @@ const closeMenu = () => {
   transition: color 0.2s ease, transform 0.2s ease;
 }
 
+
 .brand::after {
   content: '';
   position: absolute;
