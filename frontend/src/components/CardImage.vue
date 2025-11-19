@@ -59,9 +59,16 @@ export default {
 </template>
 
 <style scoped>
+picture {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .card-image {
   width: 100%;
   height: auto;
   display: block;
+  margin: 0 auto;
 }
 </style>
