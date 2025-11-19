@@ -19,7 +19,15 @@
 
           <div class="card-grid">
             <aside class="card-media" :class="{ 'image-error': imageErrored }">
-              <div class="card-media__frame">
+                <div
+                  class="card-media__frame interactive-card"
+                  :class="{ 'interactive-card--active': isInspecting }"
+                  ref="cardDisplayRef"
+                  :style="inspectStyle"
+                  @pointermove="handlePointerMove"
+                  @pointerleave="handlePointerLeave"
+                  @click="toggleInspect"
+                >
                 <img
                   v-if="hasCardImage"
                   :src="getCardImage(card.image)"
@@ -27,6 +35,10 @@
                   class="card-media__image"
                   @error="handleImageError"
                 />
+                <div v-if="hasCardImage" class="card-media__effects" aria-hidden="true">
+                  <span class="card-media__foil"></span>
+                  <span class="card-media__shine"></span>
+                </div>
                 <div v-else class="card-placeholder card-placeholder--hero">
                   <img
                     :src="placeholderCard"
@@ -35,6 +47,23 @@
                   />
                 </div>
               </div>
+
+                <button
+                  v-if="hasCardImage && !isInspecting"
+                  type="button"
+                  class="inspect-hint"
+                  @click.stop="toggleInspect"
+                >
+                  Cliquer pour inspecter
+                </button>
+                <button
+                  v-else-if="isInspecting"
+                  type="button"
+                  class="inspect-hint inspect-hint--active"
+                  @click.stop="toggleInspect"
+                >
+                  Quitter l'inspection
+                </button>
 
               <div class="cta-stack">
                 <button class="btn btn-secondary" @click="goToSimilarCards">
@@ -205,9 +234,9 @@
               <div class="card-meta">
                 <p v-if="card.illustrator" class="card-illustrator-link">
                   Illustrateur :
-                  <a class="inline-link yellow-link" @click="">
-                    {{ card.illustrator }}
-                  </a>
+                    <button type="button" class="inline-link yellow-link" @click="goToIllustrator">
+                      {{ card.illustrator }}
+                    </button>
                 </p>
                 <p>
                   {{ card.localId }} / {{ card.set?.cardCount?.official || card.set?.cardCount?.total || '—' }}
@@ -235,7 +264,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import placeholderCard from '@/assets/placeholder_card.png'
 import { getCardImageUrl } from '../services/imageService'
@@ -253,21 +282,25 @@ const abilityIconModules = import.meta.glob('../assets/abilities/*.{png,jpg,jpeg
 const stripAccents = (value = '') => value.normalize('NFD').replace(/\p{Diacritic}/gu, '')
 const normalizeTypeKey = (value = '') => stripAccents(value).toLowerCase()
 
-const typeIconMap = Object.entries(typeIconModules).reduce((acc, [path, module]) => {
-  const fileName = path.split('/').pop() || ''
-  const baseName = fileName.replace(/\.[^.]+$/, '')
-  const key = normalizeTypeKey(baseName)
-  if (key) acc[key] = module
-  return acc
-}, {})
+const buildIconMap = (modules, aliases = {}) => {
+  const baseMap = Object.entries(modules).reduce((acc, [path, module]) => {
+    const fileName = path.split('/').pop() || ''
+    const baseName = fileName.replace(/\.[^.]+$/, '')
+    const key = normalizeTypeKey(baseName)
+    if (key) acc[key] = module
+    return acc
+  }, {})
 
-const abilityIconMap = Object.entries(abilityIconModules).reduce((acc, [path, module]) => {
-  const fileName = path.split('/').pop() || ''
-  const baseName = fileName.replace(/\.[^.]+$/, '')
-  const key = normalizeTypeKey(baseName)
-  if (key) acc[key] = module
-  return acc
-}, {})
+  Object.entries(aliases).forEach(([alias, target]) => {
+    const aliasKey = normalizeTypeKey(alias)
+    const targetKey = normalizeTypeKey(target)
+    if (!baseMap[aliasKey] && baseMap[targetKey]) {
+      baseMap[aliasKey] = baseMap[targetKey]
+    }
+  })
+
+  return baseMap
+}
 
 const TYPE_ALIASES = {
   eau: 'eau',
@@ -294,13 +327,7 @@ const TYPE_ALIASES = {
   incolore: 'incolore'
 }
 
-Object.entries(TYPE_ALIASES).forEach(([alias, target]) => {
-  const aliasKey = normalizeTypeKey(alias)
-  const targetKey = normalizeTypeKey(target)
-  if (!typeIconMap[aliasKey] && typeIconMap[targetKey]) {
-    typeIconMap[aliasKey] = typeIconMap[targetKey]
-  }
-})
+const typeIconMap = buildIconMap(typeIconModules, TYPE_ALIASES)
 
 const getTypeIcon = (type) => typeIconMap[normalizeTypeKey(type)] || null
 const ABILITY_ALIASES = {
@@ -313,13 +340,7 @@ const ABILITY_ALIASES = {
   'poké-body': 'poke-body'
 }
 
-Object.entries(ABILITY_ALIASES).forEach(([alias, target]) => {
-  const aliasKey = normalizeTypeKey(alias)
-  const targetKey = normalizeTypeKey(target)
-  if (!abilityIconMap[aliasKey] && abilityIconMap[targetKey]) {
-    abilityIconMap[aliasKey] = abilityIconMap[targetKey]
-  }
-})
+const abilityIconMap = buildIconMap(abilityIconModules, ABILITY_ALIASES)
 
 const getAbilityIcon = (type) => abilityIconMap[normalizeTypeKey(type)] || null
 
@@ -329,10 +350,43 @@ const card = ref(null)
 const loading = ref(true)
 const error = ref(null)
 const imageErrored = ref(false)
+const isInspecting = ref(false)
+const cardDisplayRef = ref(null)
+const createInspectBaseline = () => ({
+  tiltX: 0,
+  tiltY: 0,
+  pointerX: 50,
+  pointerY: 50,
+  glare: 45,
+  intensity: 0,
+  foilShiftX: 0,
+  foilShiftY: 0,
+  foilRotate: 0
+})
+
+const inspectMetrics = reactive(createInspectBaseline())
+const setInspectMetrics = (overrides = {}) => {
+  Object.assign(inspectMetrics, {
+    ...createInspectBaseline(),
+    ...overrides
+  })
+}
 
 const getCardImage = (imageUrl) => getCardImageUrl(imageUrl, 'high', 'webp')
 
 const hasCardImage = computed(() => Boolean(card.value?.image) && !imageErrored.value)
+
+const inspectStyle = computed(() => ({
+  '--tilt-x': `${inspectMetrics.tiltX}deg`,
+  '--tilt-y': `${inspectMetrics.tiltY}deg`,
+  '--pointer-x': `${inspectMetrics.pointerX}%`,
+  '--pointer-y': `${inspectMetrics.pointerY}%`,
+  '--glare-angle': `${inspectMetrics.glare}deg`,
+  '--glare-strength': inspectMetrics.intensity,
+  '--foil-translate-x': `${inspectMetrics.foilShiftX}px`,
+  '--foil-translate-y': `${inspectMetrics.foilShiftY}px`,
+  '--foil-rotate': `${inspectMetrics.foilRotate}deg`
+}))
 
 const cardNumber = computed(() => {
   const local = card.value?.localId || '—'
@@ -364,6 +418,22 @@ const goToSet = (setId) => {
   }
 }
 
+const goToIllustrator = () => {
+  const illustrator = card.value?.illustrator
+  if (!illustrator) return
+
+  const routeOptions = {
+    name: 'CardsByIllustrator',
+    params: { illustrator }
+  }
+
+  if (card.value?.id) {
+    routeOptions.query = { exclude: card.value.id }
+  }
+
+  router.push(routeOptions)
+}
+
 const goToSimilarCards = () => {
   const name = card.value?.name
   if (!name) return
@@ -384,6 +454,47 @@ const goToSimilarCards = () => {
   router.push(routeOptions)
 }
 
+const toggleInspect = () => {
+  if (!hasCardImage.value) return
+  isInspecting.value = !isInspecting.value
+  if (!isInspecting.value) {
+    setInspectMetrics()
+  } else {
+    inspectMetrics.intensity = 0.18
+  }
+}
+
+const handlePointerMove = (event) => {
+  if (!isInspecting.value || !cardDisplayRef.value) return
+
+  const rect = cardDisplayRef.value.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+  const percentX = Math.min(Math.max((x / rect.width) * 100, 0), 100)
+  const percentY = Math.min(Math.max((y / rect.height) * 100, 0), 100)
+  const tiltY = ((percentX - 50) / 50) * 10
+  const tiltX = ((percentY - 50) / 50) * -10
+  const glare = percentX * 0.8 + percentY * 0.2
+  const foilShiftX = ((percentX - 50) / 50) * 12
+  const foilShiftY = ((percentY - 50) / 50) * 12
+  const foilRotate = ((percentX + percentY) / 2 - 50) * 0.6
+
+  inspectMetrics.pointerX = percentX
+  inspectMetrics.pointerY = percentY
+  inspectMetrics.tiltX = tiltX
+  inspectMetrics.tiltY = tiltY
+  inspectMetrics.glare = glare
+  inspectMetrics.intensity = 0.32
+  inspectMetrics.foilShiftX = foilShiftX
+  inspectMetrics.foilShiftY = foilShiftY
+  inspectMetrics.foilRotate = foilRotate
+}
+
+const handlePointerLeave = () => {
+  if (!isInspecting.value) return
+  setInspectMetrics({ intensity: 0.12 })
+}
+
 const formatWeakness = (weakness) => {
   if (!weakness) return '—'
   return `${weakness.type} ${weakness.value}`
@@ -394,11 +505,22 @@ const formatResistance = (resistance) => {
   return `${resistance.type} ${resistance.value}`
 }
 
-const fetchCard = async () => {
+let abortController
+const cardId = computed(() => route.params.id)
+
+const fetchCard = async (id) => {
+  if (!id) return
+
   try {
+    abortController?.abort()
+    abortController = new AbortController()
     loading.value = true
     imageErrored.value = false
-    const response = await fetch(`http://localhost:3000/api/cards/${route.params.id}`)
+    error.value = null
+
+    const response = await fetch(`http://localhost:3000/api/cards/${id}`, {
+      signal: abortController.signal
+    })
     const data = await response.json()
 
     if (data.success) {
@@ -407,15 +529,29 @@ const fetchCard = async () => {
       error.value = 'Carte non trouvée'
     }
   } catch (err) {
+    if (err.name === 'AbortError') return
     error.value = 'Impossible de charger la carte'
     console.error('Erreur:', err)
   } finally {
-    loading.value = false
+    if (!abortController?.signal.aborted) {
+      loading.value = false
+    }
   }
 }
 
-onMounted(() => {
-  fetchCard()
+watch(cardId, (id) => {
+  if (!id) {
+    card.value = null
+    error.value = 'Carte non trouvée'
+    loading.value = false
+    return
+  }
+
+  fetchCard(id)
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  abortController?.abort()
 })
 </script>
 
@@ -519,6 +655,71 @@ onMounted(() => {
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --pointer-x: 50%;
+  --pointer-y: 50%;
+  --glare-angle: 45deg;
+  --glare-strength: 0;
+}
+
+.interactive-card {
+  cursor: pointer;
+}
+
+.interactive-card--active {
+  transform: perspective(1200px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) scale(1.02);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.65), inset 0 0 60px rgba(0, 0, 0, 0.45);
+}
+
+.interactive-card--active::after,
+.interactive-card--active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.interactive-card--active::after {
+  background: radial-gradient(
+      circle at var(--pointer-x) var(--pointer-y),
+      rgba(255, 255, 255, 0.2),
+      transparent 55%
+    ),
+    conic-gradient(
+      from var(--glare-angle),
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 200, 150, 0.16),
+      rgba(120, 190, 255, 0.18),
+      rgba(255, 255, 255, 0.04)
+    );
+  mix-blend-mode: screen;
+  opacity: clamp(0, var(--glare-strength), 0.6);
+  filter: blur(0.5px);
+}
+
+.interactive-card--active::before {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 120, 150, 0.06),
+      rgba(130, 200, 255, 0.08),
+      rgba(255, 255, 255, 0.03)
+    ),
+    repeating-linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.035) 0,
+      rgba(255, 255, 255, 0.035) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+  mix-blend-mode: color-dodge;
+  opacity: calc(var(--glare-strength) + 0.1);
 }
 
 .card-media__image {
@@ -526,6 +727,59 @@ onMounted(() => {
   display: block;
   border-radius: 20px;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+}
+
+.card-media__effects {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.card-media__foil,
+.card-media__shine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+
+.card-media__foil {
+  background:
+    linear-gradient(125deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
+    repeating-linear-gradient(
+      140deg,
+      rgba(255, 255, 255, 0.08) 0,
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.2), transparent 60%);
+  mix-blend-mode: color-dodge;
+  filter: saturate(1.2);
+}
+
+.card-media__shine {
+  background:
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255, 255, 255, 0.3), transparent 45%),
+    linear-gradient(
+      var(--glare-angle),
+      rgba(255, 255, 255, 0.15),
+      rgba(255, 255, 255, 0.02)
+    );
+  mix-blend-mode: screen;
+  filter: blur(2px);
+}
+
+.interactive-card--active .card-media__foil,
+.interactive-card--active .card-media__shine {
+  opacity: clamp(0, var(--glare-strength) + 0.15, 0.7);
+}
+
+.interactive-card--active .card-media__foil {
+  transform: translate3d(var(--foil-translate-x), var(--foil-translate-y), 0) rotate(var(--foil-rotate));
+  background-position: var(--pointer-x) var(--pointer-y);
 }
 
 .card-placeholder {
@@ -542,6 +796,28 @@ onMounted(() => {
   height: 100%;
   object-fit: cover;
   opacity: 0.6;
+}
+
+.inspect-hint {
+  align-self: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 10, 10, 0.65);
+  color: #fef9c3;
+  border-radius: 999px;
+  padding: 0.35rem 1.2rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.inspect-hint:hover {
+  border-color: rgba(255, 255, 255, 0.65);
+  transform: translateY(-1px);
+}
+
+.inspect-hint--active {
+  background: rgba(3, 7, 18, 0.85);
+  color: #f8fafc;
 }
 
 .cta-stack {
