@@ -16,15 +16,15 @@
             <nav class="footer__links">
                 <div class="footer__links-column">
                     <p class="footer__column-label">Navigation</p>
-                    <router-link to="/" class="footer__link">Accueil</router-link>
-                    <router-link to="/sets" class="footer__link">Sets</router-link>
-                    <a href="#features" class="footer__link">Fonctionnalités</a>
+                    <router-link to="/" class="footer__link yellow-link">Accueil</router-link>
+                    <router-link to="/sets" class="footer__link yellow-link">Sets</router-link>
+                    <a href="#features" class="footer__link yellow-link">Fonctionnalités</a>
                 </div>
                 <div class="footer__links-column">
                     <p class="footer__column-label">Ressources</p>
-                    <a href="https://www.tcgdex.net/" target="_blank" rel="noreferrer" class="footer__link">TCGdex</a>
-                    <a href="mailto:test" class="footer__link">Contact</a>
-                    <a href="https://github.com/fortyup/pokevault" target="_blank" rel="noreferrer" class="footer__link">GitHub</a>
+                    <a href="https://www.tcgdex.net/" target="_blank" rel="noreferrer" class="footer__link yellow-link">TCGdex</a>
+                    <a href="mailto:test" class="footer__link yellow-link">Contact</a>
+                    <a href="https://github.com/fortyup/pokevault" target="_blank" rel="noreferrer" class="footer__link yellow-link">GitHub</a>
                 </div>
             </nav>
 

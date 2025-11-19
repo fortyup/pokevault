@@ -37,7 +37,7 @@
               </div>
 
               <div class="cta-stack">
-                <button class="cta-button cta-button--secondary" @click="goToSet(card.set?.id)">
+                <button class="btn btn-secondary" @click="goToSimilarCards">
                   Plus de cartes
                 </button>
               </div>
@@ -72,7 +72,7 @@
               </header>
 
               <p class="card-category" v-if="card.category">{{ card.category }}</p>
-              <p class="card-set">Set {{ card.set?.name || 'inconnu' }} • {{ card.rarity || 'Rareté inconnue' }}</p>
+              <p class="card-set"><a class="yellow-link" @click="goToSet(card.set?.id)">Set {{ card.set?.name || 'inconnu' }}</a> • {{ card.rarity || 'Rareté inconnue' }}</p>
 
               <div class="card-abilities" v-if="card.abilities?.length">
                 <article
@@ -203,9 +203,11 @@
               </div>
 
               <div class="card-meta">
-                <p v-if="card.illustrator">
+                <p v-if="card.illustrator" class="card-illustrator-link">
                   Illustrateur :
-                  <span class="meta-strong">{{ card.illustrator }}</span>
+                  <a class="inline-link yellow-link" @click="">
+                    {{ card.illustrator }}
+                  </a>
                 </p>
                 <p>
                   {{ card.localId }} / {{ card.set?.cardCount?.official || card.set?.cardCount?.total || '—' }}
@@ -362,11 +364,24 @@ const goToSet = (setId) => {
   }
 }
 
-const openPokedex = () => {
-  const slug = card.value?.name?.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')
-  if (slug) {
-    window.open(`https://www.pokemon.com/fr/pokedex/${slug}`, '_blank')
+const goToSimilarCards = () => {
+  const name = card.value?.name
+  if (!name) return
+
+  const primaryDexId = Array.isArray(card.value?.dexId)
+    ? card.value.dexId[0]
+    : card.value?.dexId
+
+  const routeOptions = {
+    name: 'CardsByName',
+    params: { name }
   }
+
+  if (primaryDexId !== undefined && primaryDexId !== null && primaryDexId !== '') {
+    routeOptions.query = { dexId: primaryDexId }
+  }
+
+  router.push(routeOptions)
 }
 
 const formatWeakness = (weakness) => {
@@ -516,7 +531,7 @@ onMounted(() => {
 .card-placeholder {
   width: 100%;
   aspect-ratio: 63 / 88;
-  border-radius: 24px;
+  border-radius: 15px;
   background: rgba(255, 255, 255, 0.05);
   position: relative;
   overflow: hidden;
@@ -840,13 +855,56 @@ onMounted(() => {
   gap: 0.4rem;
 }
 
-.card-meta--links {
-  border-style: dashed;
+.card-illustrator-link {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
 }
 
-.meta-strong {
-  color: #fff;
+.inline-link {
+  border: none;
+  background: transparent;
+  color: rgba(250, 204, 21, 0.85);
   font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  padding: 0.15rem 0.2rem;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.inline-link::after {
+  content: '';
+  position: absolute;
+  left: 0.15rem;
+  right: 0.15rem;
+  bottom: 0.1rem;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(250, 204, 21, 0.2), rgba(250, 204, 21, 0.7));
+  border-radius: 999px;
+  opacity: 0;
+  transform: scaleX(0.6);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.inline-link:hover {
+  color: #facc15;
+  transform: translateY(-1px);
+}
+
+.inline-link:hover::after,
+.inline-link:focus-visible::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.inline-link:focus-visible {
+  outline: none;
+  color: #facc15;
+}
+
+.card-meta--links {
+  border-style: dashed;
 }
 
 .variant-tags {

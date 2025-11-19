@@ -16,6 +16,8 @@ router.get('/', async (req, res) => {
             rarity,
             setId,
             hp,
+            illustrator,
+            dexId,
             sort = 'name'
         } = req.query;
 
@@ -27,6 +29,12 @@ router.get('/', async (req, res) => {
         if (rarity) query.rarity = rarity;
         if (setId) query['set.id'] = setId;
         if (hp) query.hp = parseInt(hp);
+        if (illustrator) query.illustrator = { $regex: illustrator, $options: 'i' };
+        if (dexId) {
+            const value = Array.isArray(dexId) ? dexId[0] : dexId;
+            const numericDex = Number(value);
+            query.dexId = Number.isNaN(numericDex) ? value : numericDex;
+        }
 
         const cards = await Card.find(query)
             .sort(sort)

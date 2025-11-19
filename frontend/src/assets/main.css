@@ -7,18 +7,51 @@
   font-weight: normal;
 }
 
-a,
-.green {
+.yellow-link {
+  cursor: pointer;
+  position: relative;
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
+  color: rgba(250, 204, 21, 0.85);
+  font-weight: 500;
+  padding: 0.2rem 0.15rem;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.yellow-link::after {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  right: 0.25rem;
+  bottom: 0.1rem;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(250, 204, 21, 0.2), rgba(250, 204, 21, 0.7));
+  border-radius: 999px;
+  opacity: 0;
+  transform: scaleX(0.6);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
 }
 
 @media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
+  .yellow-link:hover {
+    color: #facc15;
+    transform: translateY(-1px);
   }
+
+  .yellow-link:hover::after {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.yellow-link:focus-visible {
+  outline: none;
+  color: #facc15;
+}
+
+.yellow-link:focus-visible::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 @media (min-width: 1024px) {
