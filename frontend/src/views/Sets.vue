@@ -12,8 +12,6 @@
         </template>
       </PageHero>
 
-      <!-- <StatHighlights :stats="setsStats"/> -->
-
       <div v-if="loading" class="status-tile">
         Chargement des sets...
       </div>
