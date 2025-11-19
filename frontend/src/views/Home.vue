@@ -97,13 +97,6 @@ const features = [
 </script>
 
 <style scoped>
-.landing-page {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #000000 0%, #1a1a1a 50%, #000000 100%);
-  color: #ffffff;
-  overflow-x: hidden;
-}
-
 /* Hero Section */
 .hero {
   position: relative;
@@ -112,7 +105,7 @@ const features = [
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8rem 2rem 4rem;
+  padding: 0 2rem 4rem;
   text-align: center;
 }
 
@@ -288,7 +281,7 @@ const features = [
 
 /* Final CTA */
 .final-cta {
-  padding: 8rem 2rem;
+  padding: 8rem 2rem 8rem;
   text-align: center;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
