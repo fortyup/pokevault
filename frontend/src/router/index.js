@@ -4,6 +4,7 @@ import Sets from '../views/Sets.vue'
 import Set from '../views/Set.vue'
 import Card from '../views/Card.vue'
 import CardsByName from '../views/CardsByName.vue'
+import CardsByIllustrator from '../views/CardsByIllustrator.vue'
 
 const routes = [
   {
@@ -25,6 +26,11 @@ const routes = [
     path: '/cards/name/:name',
     name: 'CardsByName',
     component: CardsByName
+  },
+  {
+    path: '/illustrations/:illustrator',
+    name: 'CardsByIllustrator',
+    component: CardsByIllustrator
   },
   {
     path: '/card/:id',
