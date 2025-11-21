@@ -144,6 +144,7 @@ const filterType = ref('')
 const filterRarity = ref('')
 const currentPage = ref(1)
 const cardsPerPage = 50
+const PAGE_STORAGE_KEY = 'pokevault-cards-pagination-state'
 
 // Mode variants : recherche des cartes avec le même nom de Pokémon
 const isVariantsMode = computed(() => Boolean(route.params.name))
@@ -330,6 +331,69 @@ const performSearch = () => {
   }
 }
 
+const readPaginationState = () => {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(PAGE_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (err) {
+    console.warn('Impossible de lire la pagination sauvegardée:', err)
+    return {}
+  }
+}
+
+const writePaginationState = (state) => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(PAGE_STORAGE_KEY, JSON.stringify(state))
+  } catch (err) {
+    console.warn('Impossible d\'écrire la pagination sauvegardée:', err)
+  }
+}
+
+const buildPaginationKey = () => {
+  const context = isVariantsMode.value ? 'variants' : 'search'
+  return [
+    context,
+    searchQuery.value || 'all',
+    targetDexId.value || 'none',
+    filterType.value || 'all',
+    filterRarity.value || 'all',
+    sortBy.value || 'name'
+  ].join('|')
+}
+
+const clampPageToAvailable = (page) => {
+  if (!Number.isFinite(page) || page < 1) return 1
+  const total = totalPages.value
+  if (!Number.isFinite(total) || total < 1) return 1
+  return Math.min(page, total)
+}
+
+const restorePaginationFromStorage = () => {
+  if (typeof window === 'undefined') return false
+  const store = readPaginationState()
+  const saved = store[buildPaginationKey()]
+  if (typeof saved === 'number' && saved >= 1) {
+    currentPage.value = clampPageToAvailable(saved)
+    return true
+  }
+  return false
+}
+
+const persistPaginationToStorage = () => {
+  if (typeof window === 'undefined') return
+  const store = readPaginationState()
+  store[buildPaginationKey()] = currentPage.value
+  writePaginationState(store)
+}
+
+const applyStoredPaginationOrReset = () => {
+  if (!restorePaginationFromStorage()) {
+    currentPage.value = 1
+  }
+}
+
 const fetchCards = async () => {
   const hasDexFilter = Boolean(targetDexId.value)
 
@@ -372,7 +436,7 @@ const fetchCards = async () => {
     }
 
     cards.value = data.data || []
-    currentPage.value = 1
+    applyStoredPaginationOrReset()
   } catch (err) {
     console.error('Erreur lors du chargement des cartes:', err)
     error.value = "Impossible de charger les cartes."
@@ -391,7 +455,24 @@ watch(
 )
 
 watch([filterType, filterRarity, sortBy], () => {
-  currentPage.value = 1
+  applyStoredPaginationOrReset()
+})
+
+watch(currentPage, () => {
+  persistPaginationToStorage()
+})
+
+watch(totalPages, (next) => {
+  if (!Number.isFinite(next) || next < 1) {
+    if (currentPage.value !== 1) {
+      currentPage.value = 1
+    }
+    return
+  }
+
+  if (currentPage.value > next) {
+    currentPage.value = next
+  }
 })
 
 onMounted(() => {
