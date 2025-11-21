@@ -3,7 +3,7 @@ import Home from '../views/Home.vue'
 import Sets from '../views/Sets.vue'
 import Set from '../views/Set.vue'
 import Card from '../views/Card.vue'
-import CardsByName from '../views/CardsByName.vue'
+import Cards from '../views/Cards.vue'
 import CardsByIllustrator from '../views/CardsByIllustrator.vue'
 
 const routes = [
@@ -23,9 +23,14 @@ const routes = [
     component: Set
   },
   {
+    path: '/cards',
+    name: 'Cards',
+    component: Cards
+  },
+  {
     path: '/cards/name/:name',
     name: 'CardsByName',
-    component: CardsByName
+    component: Cards
   },
   {
     path: '/illustrations/:illustrator',

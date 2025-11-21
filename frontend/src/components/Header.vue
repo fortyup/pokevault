@@ -10,9 +10,21 @@
       </router-link>
 
       <nav class="nav-pill">
-        <a href="#pricing" class="nav-link">Prix</a>
-        <a href="#company" class="nav-link">Entreprise</a>
-        <a href="#blog" class="nav-link">Blog</a>
+        <div class="search-container">
+          <input 
+            type="text" 
+            v-model="searchQuery"
+            @keyup.enter="handleSearch"
+            placeholder="Rechercher des cartes..."
+            class="search-input"
+          />
+          <button @click="handleSearch" class="search-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+          </button>
+        </div>
         <a href="#changelog" class="nav-link">Journal des modifications</a>
         <router-link to="/sets" class="nav-link">Sets</router-link>
       </nav>
@@ -27,9 +39,21 @@
     </div>
 
     <div class="mobile-menu" :class="{ 'is-open': isMenuOpen }">
-      <a href="#pricing" class="mobile-nav-link" @click="closeMenu">Prix</a>
-      <a href="#company" class="mobile-nav-link" @click="closeMenu">Entreprise</a>
-      <a href="#blog" class="mobile-nav-link" @click="closeMenu">Blog</a>
+      <div class="mobile-search">
+        <input 
+          type="text" 
+          v-model="searchQuery"
+          @keyup.enter="handleSearch"
+          placeholder="Rechercher des cartes..."
+          class="search-input"
+        />
+        <button @click="handleSearch" class="search-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </button>
+      </div>
       <a href="#changelog" class="mobile-nav-link" @click="closeMenu">Journal des modifications</a>
       <router-link to="/sets" class="mobile-nav-link" @click="closeMenu">Sets</router-link>
       <div class="mobile-actions">
@@ -41,8 +65,11 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const isMenuOpen = ref(false)
+const searchQuery = ref('')
 
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
@@ -50,6 +77,16 @@ const toggleMenu = () => {
 
 const closeMenu = () => {
   isMenuOpen.value = false
+}
+
+const handleSearch = () => {
+  if (searchQuery.value.trim()) {
+    router.push({
+      path: '/cards',
+      query: { search: searchQuery.value.trim() }
+    })
+    closeMenu()
+  }
 }
 </script>
 
@@ -92,6 +129,52 @@ const closeMenu = () => {
   background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+}
+
+.search-container:focus-within {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.search-input {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.92rem;
+  outline: none;
+  width: 200px;
+  padding: 0.25rem 0.5rem;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.search-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.search-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .nav-link {
@@ -285,6 +368,21 @@ const closeMenu = () => {
   width: 100%;
   text-align: center;
   padding: 0.75rem;
+}
+
+.mobile-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 2.5rem 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mobile-search .search-input {
+  flex: 1;
 }
 
 /* Responsive */
