@@ -9,7 +9,14 @@
                 </p>
                 <div class="footer__actions">
                     <router-link to="/sets" class="btn btn-primary btn-small">Explorer les sets</router-link>
-                    <router-link to="/card/preview" class="btn btn-secondary btn-small">Rechercher une carte</router-link>
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-small"
+                        @click="showRandomCard"
+                        :disabled="randomCardLoading"
+                    >
+                        {{ randomCardLoading ? 'Chargement…' : 'Carte aléatoire' }}
+                    </button>
                 </div>
             </div>
 
@@ -38,9 +45,35 @@
 </template>
 
 <script setup>
-import { RouterLink } from 'vue-router'
+import { ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+
+const API_BASE_URL = (import.meta.env?.VITE_API_URL || 'http://localhost:3000/api').replace(/\/$/, '')
 
 const currentYear = new Date().getFullYear()
+const router = useRouter()
+const randomCardLoading = ref(false)
+
+const showRandomCard = async () => {
+    if (randomCardLoading.value) return
+    randomCardLoading.value = true
+    try {
+        const response = await fetch(`${API_BASE_URL}/cards/random/card`)
+        if (!response.ok) {
+            throw new Error(`Statut ${response.status}`)
+        }
+        const payload = await response.json()
+        const cardId = payload?.data?.id
+        if (!cardId) {
+            throw new Error('Réponse carte aléatoire invalide')
+        }
+        router.push({ name: 'Card', params: { id: cardId } })
+    } catch (err) {
+        console.error('Impossible de charger une carte aléatoire :', err)
+    } finally {
+        randomCardLoading.value = false
+    }
+}
 </script>
 
 <style scoped>
