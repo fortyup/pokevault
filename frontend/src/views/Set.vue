@@ -57,20 +57,43 @@
               <p class="eyebrow">Collection complète</p>
               <h2>Cartes du set</h2>
             </div>
-            <p class="cards-section__count">{{ cards.length }} / {{ cardsSynced }} cartes affichées</p>
+            <div class="cards-filters">
+              <input
+                v-model="filters.q"
+                type="search"
+                placeholder="Rechercher par nom..."
+                class="filter-input"
+                @input="onFilterChange"
+              />
+
+              <select v-model="filters.type" class="filter-select" @change="onFilterChange">
+                <option value="all">Tous types</option>
+                <option v-for="t in availableTypes" :key="t" :value="t">{{ t }}</option>
+              </select>
+
+              <select v-model="filters.rarity" class="filter-select" @change="onFilterChange">
+                <option value="all">Toutes raretés</option>
+                <option v-for="r in availableRarities" :key="r" :value="r">{{ r }}</option>
+              </select>
+
+              <button class="ghost-button" @click="resetFilters">Réinitialiser</button>
+              <span v-if="loadingAllCards" class="filters-loading">Chargement filtres…</span>
+            </div>
+            <p class="cards-section__count">{{ noFilterActive ? cards.length : filteredAll.length }} / {{ cardsSynced }} cartes affichées</p>
           </header>
 
           <div v-if="loadingCards" class="cards-status">
             Chargement des cartes...
           </div>
 
-          <div v-else-if="cards.length === 0" class="cards-status cards-status--empty">
-            Aucune carte disponible pour ce set
+          <div v-else-if="(noFilterActive ? cards.length === 0 : filteredAll.length === 0)" class="cards-status cards-status--empty">
+            <span v-if="noFilterActive">Aucune carte disponible pour ce set</span>
+            <span v-else>Aucune carte ne correspond aux critères de filtrage</span>
           </div>
 
           <div v-else class="cards-grid">
             <article
-              v-for="card in cards"
+              v-for="card in displayedCards"
               :key="card.id"
               class="card-item"
               @click="goToCard(card.id)"
@@ -102,24 +125,45 @@
             </article>
           </div>
 
-          <div v-if="pagination.pages > 1" class="pagination">
-            <button
-              @click="loadPage(pagination.page - 1)"
-              :disabled="pagination.page === 1"
-              class="ghost-button"
-            >
-              Précédent
-            </button>
-            <span class="page-info">
-              Page {{ pagination.page }} / {{ pagination.pages }}
-            </span>
-            <button
-              @click="loadPage(pagination.page + 1)"
-              :disabled="pagination.page === pagination.pages"
-              class="ghost-button"
-            >
-              Suivant
-            </button>
+          <div v-if="noFilterActive ? (pagination.pages > 1) : (filteredPages > 1)" class="pagination">
+            <template v-if="noFilterActive">
+              <button
+                @click="loadPage(pagination.page - 1)"
+                :disabled="pagination.page === 1"
+                class="ghost-button"
+              >
+                Précédent
+              </button>
+              <span class="page-info">
+                Page {{ pagination.page }} / {{ pagination.pages }}
+              </span>
+              <button
+                @click="loadPage(pagination.page + 1)"
+                :disabled="pagination.page === pagination.pages"
+                class="ghost-button"
+              >
+                Suivant
+              </button>
+            </template>
+            <template v-else>
+              <button
+                @click="loadFilteredPage(filteredPage - 1)"
+                :disabled="filteredPage === 1"
+                class="ghost-button"
+              >
+                Précédent
+              </button>
+              <span class="page-info">
+                Page {{ filteredPage }} / {{ filteredPages }}
+              </span>
+              <button
+                @click="loadFilteredPage(filteredPage + 1)"
+                :disabled="filteredPage === filteredPages"
+                class="ghost-button"
+              >
+                Suivant
+              </button>
+            </template>
           </div>
         </section>
       </div>
@@ -128,7 +172,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import placeholderLogo from '@/assets/placeholder_logo.png'
 import popLogo from '@/assets/pop_logo.png'
@@ -139,15 +183,135 @@ const route = useRoute()
 const router = useRouter()
 const set = ref({})
 const cards = ref([])
+const allCards = ref([])
 const erroredCards = ref(new Set())
 const loading = ref(true)
 const loadingCards = ref(true)
+const loadingAllCards = ref(false)
 const error = ref(null)
 const pagination = ref({
   page: 1,
   limit: 100,
   total: 0,
   pages: 0
+})
+
+// Filtres UI
+const filters = ref({
+  q: '',
+  type: 'all',
+  rarity: 'all'
+})
+
+const FILTER_STORAGE_KEY = `setFilters-${route.params.id}`
+
+const getCardType = (card) => {
+  if (!card) return ''
+  if (card.supertype) return card.supertype
+  if (card.type) return card.type
+  if (Array.isArray(card.types) && card.types.length) return card.types[0]
+  if (Array.isArray(card.subtypes) && card.subtypes.length) return card.subtypes[0]
+  return ''
+}
+
+const availableTypes = computed(() => {
+  const source = (allCards.value && allCards.value.length) ? allCards.value : cards.value
+  const setTypes = new Set()
+  for (const c of source) {
+    const t = getCardType(c)
+    if (t) setTypes.add(t)
+  }
+  return Array.from(setTypes).sort()
+})
+
+const availableRarities = computed(() => {
+  const source = (allCards.value && allCards.value.length) ? allCards.value : cards.value
+  const setR = new Set()
+  for (const c of source) {
+    if (c.rarity) setR.add(c.rarity)
+  }
+  return Array.from(setR).sort()
+})
+
+const noFilterActive = computed(() => {
+  const q = (filters.value.q || '').trim()
+  const type = filters.value.type
+  const rarity = filters.value.rarity
+  return !q && (!type || type === 'all') && (!rarity || rarity === 'all')
+})
+
+// filteredAll contains the full list of matching cards (across all pages when available)
+const filteredAll = computed(() => {
+  const q = (filters.value.q || '').trim().toLowerCase()
+  const type = filters.value.type
+  const rarity = filters.value.rarity
+
+  const source = (allCards.value && allCards.value.length) ? allCards.value : cards.value
+
+  let result = source.filter((c) => {
+    const name = (c.name || '').toLowerCase()
+    const localId = String(c.localId || '')
+    if (q) {
+      if (!name.includes(q) && !localId.includes(q)) return false
+    }
+
+    if (type && type !== 'all') {
+      const ct = getCardType(c)
+      if ((ct || '').toLowerCase() !== type.toLowerCase()) return false
+    }
+
+    if (rarity && rarity !== 'all') {
+      if (((c.rarity || '').toLowerCase()) !== rarity.toLowerCase()) return false
+    }
+
+    return true
+  })
+
+  return sortByLocalId(result)
+})
+
+// Local pagination for filtered results
+const pageSize = computed(() => parseInt(pagination.value.limit, 10) || 100)
+const filteredPage = ref(1)
+const filteredPages = computed(() => Math.max(1, Math.ceil(filteredAll.value.length / pageSize.value)))
+
+// displayedCards: when no filter active -> server page, otherwise -> slice of filteredAll
+const displayedCards = computed(() => {
+  if (noFilterActive.value) return cards.value
+  const start = (filteredPage.value - 1) * pageSize.value
+  return filteredAll.value.slice(start, start + pageSize.value)
+})
+
+const loadFilteredPage = (page) => {
+  if (page >= 1 && page <= filteredPages.value) {
+    filteredPage.value = page
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+// reset filtered page when filters change
+watch(filters, () => {
+  filteredPage.value = 1
+})
+
+const onFilterChange = () => {
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters.value))
+  } catch (e) {
+    // ignore
+  }
+}
+
+const resetFilters = () => {
+  filters.value = { q: '', type: 'all', rarity: 'all' }
+  try {
+    localStorage.removeItem(FILTER_STORAGE_KEY)
+  } catch (e) {}
+}
+
+watch(cards, () => {
+  // If cards change (page change or fresh fetch), ensure filters persisted keys exist
+  // nothing else: filteredCards is reactive
 })
 
 const formatDate = (dateString) => {
@@ -296,11 +460,39 @@ const fetchCards = async (page = 1) => {
       pagination.value = data.pagination
       // Sauvegarde la page courante dans le local storage
       localStorage.setItem(`setPage-${route.params.id}`, String(page))
+      // Lance une récupération en arrière-plan de toutes les cartes du set
+      if (pagination.value.pages > 1 && allCards.value.length === 0) {
+        fetchAllCards(pagination.value.pages)
+      } else if (pagination.value.pages === 1) {
+        // si une seule page, on peut remplir allCards directement
+        allCards.value = sortByLocalId(data.data)
+      }
     }
   } catch (err) {
     console.error('Erreur lors du chargement des cartes:', err)
   } finally {
     loadingCards.value = false
+  }
+}
+
+const fetchAllCards = async (pages) => {
+  if (!pages || pages <= 1) return
+  loadingAllCards.value = true
+  try {
+    const promises = []
+    // on commence à 2 parce que page 1 a déjà été chargée via fetchCards
+    for (let p = 2; p <= pages; p++) {
+      const url = `http://localhost:3000/api/sets/${route.params.id}/cards?page=${p}&limit=100`
+      promises.push(fetch(url).then(r => r.json()))
+    }
+
+    const results = await Promise.all(promises)
+    const pagesData = results.filter(r => r && r.success).flatMap(r => r.data || [])
+    allCards.value = sortByLocalId([...cards.value, ...pagesData])
+  } catch (err) {
+    console.error('Erreur lors du chargement de toutes les cartes:', err)
+  } finally {
+    loadingAllCards.value = false
   }
 }
 
@@ -316,6 +508,17 @@ onMounted(() => {
   // Récupère la page sauvegardée pour ce set, sinon 1
   const savedPage = parseInt(localStorage.getItem(`setPage-${route.params.id}`), 10)
   const initialPage = (!isNaN(savedPage) && savedPage > 0) ? savedPage : 1
+  // charge les filtres sauvegardés
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') filters.value = { ...filters.value, ...parsed }
+    }
+  } catch (e) {
+    // ignore
+  }
+
   fetchCards(initialPage)
 })
 </script>
@@ -530,6 +733,35 @@ onMounted(() => {
   margin-bottom: 2rem;
 }
 
+.cards-filters {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.filter-input {
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  color: #fff;
+  min-width: 180px;
+}
+
+.filter-select {
+  padding: 0.45rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  color: #fff;
+}
+
+.filters-loading {
+  color: rgba(255,255,255,0.6);
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
 .eyebrow {
   letter-spacing: 0.35em;
   text-transform: uppercase;
@@ -559,7 +791,11 @@ onMounted(() => {
 
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  /* Fixe la largeur des colonnes pour garder des cartes de dimensions constantes
+     même si la dernière ligne est incomplète. La grille est centrée pour que
+     l'espace restant soit distribué autour des colonnes, pas en étirant les cartes. */
+  grid-template-columns: repeat(auto-fill, minmax(220px, 220px));
+  justify-content: center;
   gap: 1.75rem;
 }
 
