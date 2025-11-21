@@ -19,16 +19,42 @@
         {{ error }}
       </div>
       <div v-else class="series-wrapper" id="series">
-        <section v-for="serie in series" :key="serie.id" class="serie-panel">
+        <section
+          v-for="serie in series"
+          :key="serie.id"
+          class="serie-panel"
+          :class="{ 'serie-panel--collapsed': isSerieCollapsed(serie.id) }"
+        >
           <header class="serie-header">
             <div>
               <p class="serie-eyebrow">{{ serie.sets.length }} sets</p>
               <h2>{{ serie.name }}</h2>
             </div>
-            <p class="serie-date">Dernière sortie · {{ getSerieLatestDate(serie) }}</p>
+            <div class="serie-header__actions">
+              <p class="serie-date">Dernière sortie · {{ getSerieLatestDate(serie) }}</p>
+              <button
+                type="button"
+                class="serie-toggle"
+                :aria-expanded="!isSerieCollapsed(serie.id)"
+                :aria-controls="`sets-${serie.id}`"
+                :aria-label="isSerieCollapsed(serie.id) ? 'Dérouler la série' : 'Enrouler la série'"
+                @click="toggleSerieCollapse(serie.id)"
+              >
+                <span
+                  class="serie-toggle__chevron"
+                  :class="{ 'serie-toggle__chevron--collapsed': isSerieCollapsed(serie.id) }"
+                >
+                  ▾
+                </span>
+              </button>
+            </div>
           </header>
 
-          <div class="sets-grid">
+          <div
+            class="sets-grid"
+            :id="`sets-${serie.id}`"
+            :class="{ 'sets-grid--collapsed': isSerieCollapsed(serie.id) }"
+          >
             <article
               v-for="set in serie.sets"
               :key="set.id"
@@ -84,6 +110,8 @@ const series = ref([])
 const loading = ref(true)
 const error = ref(null)
 const logoPalettes = ref({})
+const collapsedSeries = ref(new Set())
+const COLLAPSED_SERIES_KEY = 'pokevault-collapsed-series'
 
 const paletteFallback = {
   primary: 'rgba(255, 255, 255, 0.1)',
@@ -305,6 +333,42 @@ const goToSet = (setId) => {
   router.push(`/set/${setId}`)
 }
 
+const isSerieCollapsed = (serieId) => collapsedSeries.value.has(serieId)
+
+const toggleSerieCollapse = (serieId) => {
+  const next = new Set(collapsedSeries.value)
+  if (next.has(serieId)) {
+    next.delete(serieId)
+  } else {
+    next.add(serieId)
+  }
+  collapsedSeries.value = next
+}
+
+const loadCollapsedSeries = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const stored = window.localStorage.getItem(COLLAPSED_SERIES_KEY)
+    if (!stored) return
+    const parsed = JSON.parse(stored)
+    if (Array.isArray(parsed)) {
+      collapsedSeries.value = new Set(parsed)
+    }
+  } catch (err) {
+    console.warn('Failed to load collapsed series state:', err)
+  }
+}
+
+const persistCollapsedSeries = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const payload = JSON.stringify([...collapsedSeries.value])
+    window.localStorage.setItem(COLLAPSED_SERIES_KEY, payload)
+  } catch (err) {
+    console.warn('Failed to persist collapsed series state:', err)
+  }
+}
+
 const fetchSeries = async () => {
   try {
     loading.value = true
@@ -357,6 +421,7 @@ const fetchSeries = async () => {
 }
 
 onMounted(() => {
+  loadCollapsedSeries()
   fetchSeries()
 })
 
@@ -367,6 +432,14 @@ watch(
     preparePaletteExtraction(current)
   },
   { deep: true }
+)
+
+watch(
+  collapsedSeries,
+  () => {
+    persistCollapsedSeries()
+  },
+  { deep: false }
 )
 </script>
 
@@ -424,6 +497,12 @@ watch(
   margin-bottom: 2rem;
 }
 
+.serie-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .serie-eyebrow {
   color: rgba(255, 255, 255, 0.6);
   text-transform: uppercase;
@@ -443,10 +522,53 @@ watch(
   font-size: 0.95rem;
 }
 
+.serie-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border 0.2s ease, color 0.2s ease;
+}
+
+.serie-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.serie-toggle__chevron {
+  display: inline-block;
+  transition: transform 0.25s ease;
+}
+
+.serie-toggle__chevron--collapsed {
+  transform: rotate(-180deg);
+}
+
 .sets-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1.5rem;
+  max-height: 9999px;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+
+.sets-grid--collapsed {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.serie-panel--collapsed .serie-header {
+  border-bottom-color: rgba(255, 255, 255, 0.04);
 }
 
 .set-card {
