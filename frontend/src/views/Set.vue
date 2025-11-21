@@ -131,6 +131,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import placeholderLogo from '@/assets/placeholder_logo.png'
+import popLogo from '@/assets/pop_logo.png'
 import placeholderCard from '@/assets/placeholder_card.png'
 import { getLogoUrl, getSymbolUrl, getCardImageUrl } from '../services/imageService'
 
@@ -159,8 +160,14 @@ const formatDate = (dateString) => {
   })
 }
 
-const getSetLogo = (logoUrl) => {
-  return logoUrl ? getLogoUrl(logoUrl, 'webp') : placeholderLogo
+const getSetLogo = (logoUrl, setData) => {
+  if (logoUrl) return getLogoUrl(logoUrl, 'webp')
+  
+  // Check if it's a POP series set
+  const isPop = setData?.id?.toLowerCase().includes('pop') || 
+                setData?.name?.toLowerCase().includes('pop')
+  
+  return isPop ? popLogo : placeholderLogo
 }
 
 const getSetSymbol = (symbolUrl) => {
@@ -225,7 +232,7 @@ const handleImageError = (cardId, event) => {
   }
 }
 
-const heroLogo = computed(() => getSetLogo(set.value.logo))
+const heroLogo = computed(() => getSetLogo(set.value.logo, set.value))
 
 const officialCount = computed(() => {
   const count = set.value.cardCount?.official ?? set.value.cardCount?.total

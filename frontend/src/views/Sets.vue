@@ -36,10 +36,10 @@
               @click="goToSet(set.id)"
             >
               <div class="set-card__glow"></div>
-              <div class="set-card__header" :style="getHeaderBackground(set.logo)">
-                <div class="set-card__header-blur" :style="getHeaderBackground(set.logo)"></div>
+              <div class="set-card__header" :style="getHeaderBackground(set.logo, set)">
+                <div class="set-card__header-blur" :style="getHeaderBackground(set.logo, set)"></div>
                 <img
-                  :src="getSetLogo(set.logo)"
+                  :src="getSetLogo(set.logo, set)"
                   :alt="set.name || 'Logo de set Pokémon'"
                   class="set-logo"
                   :class="{ 'set-logo--placeholder': !set.logo }"
@@ -76,6 +76,7 @@ import PageHero from '@/components/PageHero.vue'
 import StatHighlights from '@/components/StatHighlights.vue'
 import { getLogoUrl, getSymbolUrl } from '../services/imageService'
 import placeholderLogo from '@/assets/placeholder_logo.png'
+import popLogo from '@/assets/pop_logo.png'
 
 const router = useRouter()
 
@@ -165,16 +166,22 @@ const getSerieLatestDate = (serie) => {
     : 'Date inconnue'
 }
 
-const getSetLogo = (logoUrl) => {
-  return logoUrl ? getLogoUrl(logoUrl) : placeholderLogo
+const getSetLogo = (logoUrl, set) => {
+  if (logoUrl) return getLogoUrl(logoUrl)
+  
+  // Check if it's a POP series set
+  const isPop = set?.id?.toLowerCase().includes('pop') || 
+                set?.name?.toLowerCase().includes('pop')
+  
+  return isPop ? popLogo : placeholderLogo
 }
 
 const getSetSymbol = (symbolUrl) => {
   return getSymbolUrl(symbolUrl)
 }
 
-const normalizeLogoKey = (logoUrl) => {
-  const source = getSetLogo(logoUrl)
+const normalizeLogoKey = (logoUrl, set) => {
+  const source = getSetLogo(logoUrl, set)
   if (!source) return placeholderLogo
   try {
     return source
@@ -184,8 +191,8 @@ const normalizeLogoKey = (logoUrl) => {
   }
 }
 
-const getHeaderBackground = (logoUrl) => {
-  const key = normalizeLogoKey(logoUrl)
+const getHeaderBackground = (logoUrl, set) => {
+  const key = normalizeLogoKey(logoUrl, set)
   const palette = (key && logoPalettes.value[key]) || paletteFallback
   return {
     backgroundImage: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})`
@@ -265,8 +272,8 @@ const extractColorsFromImage = (src) => {
   })
 }
 
-const ensurePaletteForLogo = async (logoUrl) => {
-  const key = normalizeLogoKey(logoUrl)
+const ensurePaletteForLogo = async (logoUrl, set) => {
+  const key = normalizeLogoKey(logoUrl, set)
   if (!key || logoPalettes.value[key] || pendingPalettes.has(key)) {
     return
   }
@@ -288,7 +295,7 @@ const preparePaletteExtraction = (seriesData) => {
   seriesData.forEach((serie) => {
     serie.sets.forEach((set) => {
       if (set.logo) {
-        ensurePaletteForLogo(set.logo)
+        ensurePaletteForLogo(set.logo, set)
       }
     })
   })

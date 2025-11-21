@@ -2,10 +2,11 @@
   <header class="glass-header">
     <div class="header-content">
       <router-link to="/" class="brand">
-        <span class="brand-mark">
-          <span class="brand-glyph" aria-hidden="true"></span>
-        </span>
-        <span class="brand-name">PokeVault</span>
+        <img
+          src="@/assets/pokevault_logo.svg"
+          alt="PokeVault"
+          class="brand-logo"
+        >
       </router-link>
 
       <nav class="nav-pill">
@@ -77,76 +78,10 @@ const closeMenu = () => {
   gap: 2rem;
 }
 
-.brand {
-  min-width: 150px;
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  color: #f5f5f5;
-  text-decoration: none;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  padding: 0.35rem 0.8rem;
-  border-radius: 999px;
-  position: relative;
-  transition: color 0.2s ease, transform 0.2s ease;
-}
-
-
-.brand::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: rgba(255, 255, 255, 0.12);
-  opacity: 0;
-  transform: scale(0.9);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: -1;
-}
-
-.brand:hover,
-.brand:focus-visible {
-  color: rgba(255, 255, 255, 0.95);
-  background-color: rgba(255, 255, 255, 0.03);
-}
-
-.brand:hover::after,
-.brand:focus-visible::after {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.brand-mark {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, #ffffff, #b7b7b7);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.56);
-  align-items: center;
-  justify-content: center;
-}
-
-.brand-glyph {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 2px solid rgba(0, 0, 0, 0.8);
-  position: relative;
-}
-
-.brand-glyph::after {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  border: 2px solid rgba(0, 0, 0, 0.5);
-}
-
-.brand-name {
-  font-size: 1.05rem;
+.brand-logo {
+  height: 32px;
+  width: auto;
+  display: block;
 }
 
 .nav-pill {
