@@ -30,7 +30,7 @@
       </nav>
 
       <div class="header-actions">
-        <router-link to="/sets" class="btn-cta">Se connecter</router-link>
+        <router-link to="/sets" class="btn btn-primary">Se connecter</router-link>
       </div>
 
       <button class="mobile-menu-btn" @click="toggleMenu" aria-label="Menu">
