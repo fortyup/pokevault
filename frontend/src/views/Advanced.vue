@@ -9,14 +9,6 @@
 						Filtrez par caractéristiques, sets et formats de jeu pour trouver précisément la carte que vous cherchez.
 					</p>
 				</div>
-				<div class="hero-actions">
-					<button type="button" class="btn btn-secondary" @click="resetFilters" :disabled="isPristine">
-						Réinitialiser
-					</button>
-					<button type="button" class="btn btn-primary" @click="submitSearch" :disabled="loading">
-						{{ loading ? 'Recherche…' : 'Lancer la recherche' }}
-					</button>
-				</div>
 			</section>
 
 			<section class="filters-panel">
