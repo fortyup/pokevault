@@ -5,6 +5,7 @@ import Set from '../views/Set.vue'
 import Card from '../views/Card.vue'
 import Cards from '../views/Cards.vue'
 import CardsByIllustrator from '../views/CardsByIllustrator.vue'
+import Advanced from '../views/Advanced.vue'
 
 const routes = [
   {
@@ -41,6 +42,11 @@ const routes = [
     path: '/card/:id',
     name: 'Card',
     component: Card
+  },
+  {
+    path: '/advanced',
+    name: 'Advanced',
+    component: Advanced
   }
 ]
 

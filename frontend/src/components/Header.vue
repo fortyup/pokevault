@@ -25,7 +25,7 @@
             </svg>
           </button>
         </div>
-        <a href="#changelog" class="nav-link">Journal des modifications</a>
+        <router-link to="/advanced" class="nav-link">Recherche avancée</router-link>
         <router-link to="/sets" class="nav-link">Sets</router-link>
       </nav>
 
@@ -54,7 +54,7 @@
           </svg>
         </button>
       </div>
-      <a href="#changelog" class="mobile-nav-link" @click="closeMenu">Journal des modifications</a>
+      <router-link to="/advanced" class="mobile-nav-link" @click="closeMenu">Recherche avancée</router-link>
       <router-link to="/sets" class="mobile-nav-link" @click="closeMenu">Sets</router-link>
       <div class="mobile-actions">
         <router-link to="/sets" class="btn-cta" @click="closeMenu">Se connecter</router-link>
