@@ -394,6 +394,8 @@ const defaultFilters = () => ({
 const filters = reactive(defaultFilters())
 const sortBy = ref('name')
 const currentPage = ref(1)
+const FILTERS_STORAGE_KEY = 'pokevault-advanced-filters'
+const PAGINATION_STORAGE_KEY = 'pokevault-advanced-pagination'
 const cards = ref([])
 const pagination = ref({ page: 1, limit: RESULT_LIMIT, total: 0, pages: 0 })
 const loading = ref(false)
@@ -541,6 +543,81 @@ const goToCard = (id) => {
 	router.push({ name: 'Card', params: { id } })
 }
 
+const safeJSONParse = (value, fallback = null) => {
+	try {
+		return JSON.parse(value)
+	} catch (err) {
+		console.warn('JSON parse error:', err)
+		return fallback
+	}
+}
+
+const persistFiltersState = () => {
+	if (typeof window === 'undefined') return
+	try {
+		const snapshot = {
+			filters: JSON.parse(JSON.stringify(filters)),
+			sortBy: sortBy.value
+		}
+		window.localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(snapshot))
+	} catch (err) {
+		console.warn('Impossible de sauvegarder les filtres avancés :', err)
+	}
+}
+
+const restoreFiltersState = () => {
+	if (typeof window === 'undefined') return
+	try {
+		const raw = window.localStorage.getItem(FILTERS_STORAGE_KEY)
+		if (!raw) return
+		const parsed = safeJSONParse(raw, null)
+		if (parsed?.filters && typeof parsed.filters === 'object') {
+			Object.assign(filters, defaultFilters(), parsed.filters)
+		}
+		if (parsed?.sortBy) {
+			sortBy.value = parsed.sortBy
+		}
+	} catch (err) {
+		console.warn('Impossible de restaurer les filtres avancés :', err)
+	}
+}
+
+const persistPaginationState = () => {
+	if (typeof window === 'undefined') return
+	try {
+		window.localStorage.setItem(PAGINATION_STORAGE_KEY, JSON.stringify({ page: currentPage.value }))
+	} catch (err) {
+		console.warn('Impossible de sauvegarder la pagination avancée :', err)
+	}
+}
+
+const restorePaginationState = () => {
+	if (typeof window === 'undefined') return
+	try {
+		const raw = window.localStorage.getItem(PAGINATION_STORAGE_KEY)
+		if (!raw) return
+		const parsed = safeJSONParse(raw, null)
+		if (parsed?.page && Number.isFinite(parsed.page) && parsed.page >= 1) {
+			currentPage.value = Math.floor(parsed.page)
+		}
+	} catch (err) {
+		console.warn('Impossible de restaurer la pagination avancée :', err)
+	}
+}
+
+const clampPageToBounds = () => {
+	const totalPages = pagination.value.pages
+	if (!Number.isFinite(totalPages) || totalPages < 1) {
+		return
+	}
+	if (currentPage.value > totalPages) {
+		currentPage.value = totalPages
+	}
+	if (currentPage.value < 1) {
+		currentPage.value = 1
+	}
+}
+
 watch(
 	() => filters.serieId,
 	() => {
@@ -554,11 +631,33 @@ watch(
 
 watch(currentPage, (newPage, oldPage) => {
 	if (newPage === oldPage) return
+	persistPaginationState()
 	runSearch()
+})
+
+watch(
+	() => pagination.value.pages,
+	() => {
+		clampPageToBounds()
+	}
+)
+
+watch(
+	filters,
+	() => {
+		persistFiltersState()
+	},
+	{ deep: true }
+)
+
+watch(sortBy, () => {
+	persistFiltersState()
 })
 
 onMounted(() => {
 	fetchTaxonomies()
+	restoreFiltersState()
+	restorePaginationState()
 	runSearch()
 })
 </script>
