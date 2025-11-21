@@ -294,6 +294,8 @@ const fetchCards = async (page = 1) => {
     if (data.success) {
       cards.value = sortByLocalId(data.data)
       pagination.value = data.pagination
+      // Sauvegarde la page courante dans le local storage
+      localStorage.setItem(`setPage-${route.params.id}`, String(page))
     }
   } catch (err) {
     console.error('Erreur lors du chargement des cartes:', err)
@@ -311,7 +313,10 @@ const loadPage = (page) => {
 
 onMounted(() => {
   fetchSet()
-  fetchCards()
+  // Récupère la page sauvegardée pour ce set, sinon 1
+  const savedPage = parseInt(localStorage.getItem(`setPage-${route.params.id}`), 10)
+  const initialPage = (!isNaN(savedPage) && savedPage > 0) ? savedPage : 1
+  fetchCards(initialPage)
 })
 </script>
 
