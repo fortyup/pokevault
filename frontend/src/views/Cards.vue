@@ -35,29 +35,15 @@
       </section>
 
       <section class="filters-section" v-if="!loading && filteredCards.length > 0">
-        <div class="filters-grid">
-          <div class="filter-group">
-            <label>Trier par</label>
-            <select v-model="sortBy" class="filter-select">
-              <option value="name">Nom</option>
-              <option value="number">Numéro</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Type</label>
-            <select v-model="filterType" class="filter-select">
-              <option value="">Tous</option>
-              <option v-for="type in availableTypes" :key="type" :value="type">{{ type }}</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Rareté</label>
-            <select v-model="filterRarity" class="filter-select">
-              <option value="">Toutes</option>
-              <option v-for="rarity in availableRarities" :key="rarity" :value="rarity">{{ rarity }}</option>
-            </select>
-          </div>
-        </div>
+        <SetFilters
+          v-model="filters"
+          :available-rarities="availableRarities"
+          :available-types="availableTypes"
+          :rarity-counts="rarityCounts"
+          :type-counts="typeCounts"
+          :show-search="false"
+          @reset="resetFilters"
+        />
       </section>
 
       <section class="cards-section">
@@ -130,6 +116,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import placeholderCard from '@/assets/placeholder_card.png'
 import { getCardImageUrl } from '../services/imageService'
+import SetFilters from '../components/SetFilters.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -140,8 +127,11 @@ const error = ref(null)
 const erroredCards = ref(new Set())
 const localSearchQuery = ref('')
 const sortBy = ref('name')
-const filterType = ref('')
-const filterRarity = ref('')
+const filters = ref({
+  q: '',
+  types: [],
+  rarities: []
+})
 const currentPage = ref(1)
 const cardsPerPage = 50
 const PAGE_STORAGE_KEY = 'pokevault-cards-pagination-state'
@@ -250,6 +240,27 @@ const availableRarities = computed(() => {
   return Array.from(rarities).sort()
 })
 
+const rarityCounts = computed(() => {
+  const map = {}
+  for (const c of cards.value) {
+    const r = c.rarity || '—'
+    map[r] = (map[r] || 0) + 1
+  }
+  return map
+})
+
+const typeCounts = computed(() => {
+  const map = {}
+  for (const c of cards.value) {
+    if (c.types && Array.isArray(c.types)) {
+      c.types.forEach(t => {
+        map[t] = (map[t] || 0) + 1
+      })
+    }
+  }
+  return map
+})
+
 const filteredCards = computed(() => {
   let result = [...cards.value]
 
@@ -266,15 +277,15 @@ const filteredCards = computed(() => {
   }
 
   // Filtrer par type
-  if (filterType.value) {
+  if (filters.value.types.length > 0) {
     result = result.filter(card => 
-      card.types && card.types.includes(filterType.value)
+      card.types && card.types.some(t => filters.value.types.includes(t))
     )
   }
 
   // Filtrer par rareté
-  if (filterRarity.value) {
-    result = result.filter(card => card.rarity === filterRarity.value)
+  if (filters.value.rarities.length > 0) {
+    result = result.filter(card => filters.value.rarities.includes(card.rarity))
   }
 
   // Trier
@@ -357,8 +368,9 @@ const buildPaginationKey = () => {
     context,
     searchQuery.value || 'all',
     targetDexId.value || 'none',
-    filterType.value || 'all',
-    filterRarity.value || 'all',
+    targetDexId.value || 'none',
+    filters.value.types.join(',') || 'all',
+    filters.value.rarities.join(',') || 'all',
     sortBy.value || 'name'
   ].join('|')
 }
@@ -454,7 +466,11 @@ watch(
   }
 )
 
-watch([filterType, filterRarity, sortBy], () => {
+watch(filters, () => {
+  applyStoredPaginationOrReset()
+}, { deep: true })
+
+watch(sortBy, () => {
   applyStoredPaginationOrReset()
 })
 
@@ -479,6 +495,10 @@ onMounted(() => {
   localSearchQuery.value = searchQuery.value
   fetchCards()
 })
+
+const resetFilters = () => {
+  filters.value = { q: '', types: [], rarities: [] }
+}
 </script>
 
 <style scoped>

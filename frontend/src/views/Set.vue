@@ -57,81 +57,15 @@
               <p class="eyebrow">Collection complète</p>
               <h2>Cartes du set</h2>
             </div>
-                      <div class="cards-filters">
-                        <div class="filters-left">
-                          <input
-                            v-model="filters.q"
-                            type="search"
-                            placeholder="Rechercher par nom, #..."
-                            class="filter-input"
-                            @input="onFilterChange"
-                          />
-                        </div>
-
-                        <div class="filters-right">
-                          <div class="filter-row">
-                            <div class="filter-row__title">Raretés</div>
-                            <div class="filter-pills scroll-x">
-                              <button
-                                class="filter-pill filter-pill--all"
-                                :class="{ 'filter-pill--active': filters.rarities.length === 0 }"
-                                @click="clearRarities"
-                                title="Afficher toutes les raretés"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-                                  <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                              </button>
-
-                              <button
-                                v-for="r in availableRarities"
-                                :key="r"
-                                class="filter-pill"
-                                :class="{ 'filter-pill--active': filters.rarities.includes(r) }"
-                                @click="() => toggleRarity(r)"
-                                :title="`Filtrer par ${r}`"
-                              >
-                                <img v-if="getRarityIcon(r)" :src="getRarityIcon(r)" :alt="r" class="pill-icon-img" />
-                                <span class="pill-label" v-else>{{ r }}</span>
-                                <span class="pill-count">{{ rarityCounts[r] || 0 }}</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          <div class="filter-row">
-                            <div class="filter-row__title">Types</div>
-                            <div class="filter-pills scroll-x">
-                              <button
-                                class="filter-pill filter-pill--all"
-                                :class="{ 'filter-pill--active': filters.types.length === 0 }"
-                                @click="clearTypes"
-                                title="Afficher tous les types"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-                                  <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                              </button>
-
-                              <button
-                                v-for="t in availableTypes"
-                                :key="t"
-                                class="filter-pill"
-                                :class="{ 'filter-pill--active': filters.types.includes(t) }"
-                                @click="() => toggleType(t)"
-                                :title="`Filtrer par ${t}`"
-                              >
-                                <img v-if="getTypeIcon(t)" :src="getTypeIcon(t)" :alt="t" class="pill-icon-img" />
-                                <span class="pill-count">{{ typeCounts[t] || 0 }}</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="filters-actions">
-                          <button class="ghost-button" @click="resetFilters">Réinitialiser</button>
-                          <span v-if="loadingAllCards" class="filters-loading">Chargement filtres…</span>
-                        </div>
-                      </div>
+            <SetFilters
+              v-model="filters"
+              :available-rarities="availableRarities"
+              :available-types="availableTypes"
+              :rarity-counts="rarityCounts"
+              :type-counts="typeCounts"
+              :loading="loadingAllCards"
+              @reset="resetFilters"
+            />
             <p class="cards-section__count">{{ noFilterActive ? cards.length : filteredAll.length }} / {{ cardsSynced }} cartes affichées</p>
           </header>
 
@@ -231,10 +165,7 @@ import placeholderLogo from '@/assets/placeholder_logo.png'
 import popLogo from '@/assets/pop_logo.png'
 import placeholderCard from '@/assets/placeholder_card.png'
 import { getLogoUrl, getSymbolUrl, getCardImageUrl } from '../services/imageService'
-
-// Import all rarity/type icons via Vite glob (use eager option for compatibility)
-const rarityModules = import.meta.glob('../assets/rarity/*', { eager: true })
-const typeModules = import.meta.glob('../assets/type/*', { eager: true })
+import SetFilters from '../components/SetFilters.vue'
 
 const normalizeKey = (s) => {
   if (!s) return ''
@@ -245,74 +176,6 @@ const normalizeKey = (s) => {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase()
-}
-
-const rarityIconMap = {}
-for (const p in rarityModules) {
-  const file = p.split('/').pop()
-  const name = file.replace(/\.[^.]+$/, '')
-  const key = normalizeKey(name)
-  rarityIconMap[key] = rarityModules[p].default
-}
-
-const typeIconMap = {}
-for (const p in typeModules) {
-  const file = p.split('/').pop()
-  const name = file.replace(/\.[^.]+$/, '')
-  const key = normalizeKey(name)
-  typeIconMap[key] = typeModules[p].default
-}
-
-const getRarityIcon = (label) => {
-  if (!label) return ''
-  const key = normalizeKey(label)
-  // Retour direct si présent
-  if (rarityIconMap[key]) return rarityIconMap[key]
-
-  // Cas spécial : Rare Holo LV.X (ou variantes) -> utiliser 'illustration rare'
-  // Normalisation possible des formes : 'rare holo lv.x', 'holo rare lv x', 'rare holo lvx', etc.
-  const lvxRegex = /\blv\s*\.?\s*x\b|\blvx\b/
-  if (lvxRegex.test(key) && key.includes('rare') && key.includes('holo')) {
-    const canon = normalizeKey('illustration rare')
-    if (rarityIconMap[canon]) return rarityIconMap[canon]
-  }
-
-  // Aliases explicites (on compare via normalizeKey pour être sûr)
-  const aliases = {
-    'holo rare': 'rare',
-    'rare holo': 'holo rare',
-    'holo': 'rare',
-    'holo rare vmax': 'holo rare v',
-    'holo rare vstar': 'holo rare v',
-    'rare prime': 'illustration rare',
-    // 'légende' (ou 'legende' normalisé) doit utiliser l'icône "illustration spéciale rare"
-    'legende': 'illustration speciale rare'
-  }
-  for (const from in aliases) {
-    if (key === normalizeKey(from)) {
-      const toKey = normalizeKey(aliases[from])
-      if (rarityIconMap[toKey]) return rarityIconMap[toKey]
-    }
-  }
-
-  // Enlever des tokens courants liés aux variantes Holo/V (holo, v, vmax, vstar, v-star, v-max)
-  const stripped = key.replace(/\b(holo|vmax|v-star|v-max|vstar|v)\b/g, '').replace(/\s+/g, ' ').trim()
-  if (stripped && rarityIconMap[stripped]) return rarityIconMap[stripped]
-
-  // Dernier essai: parcourir tokens pour trouver un match (ex: 'rare', 'ultra')
-  const tokens = key.split(' ').filter(Boolean)
-  for (let t of tokens) {
-    if (['holo','v','vmax','vstar','v-star','v-max'].includes(t)) continue
-    if (rarityIconMap[t]) return rarityIconMap[t]
-  }
-
-  return ''
-}
-
-const getTypeIcon = (label) => {
-  if (!label) return ''
-  const key = normalizeKey(label)
-  return typeIconMap[key] || ''
 }
 
 const route = useRoute()
@@ -490,7 +353,13 @@ const filteredPages = computed(() => Math.max(1, Math.ceil(filteredAll.value.len
 
 // displayedCards: when no filter active -> server page, otherwise -> slice of filteredAll
 const displayedCards = computed(() => {
-  if (noFilterActive.value) return cards.value
+  if (noFilterActive.value) {
+    if (allCards.value.length > 0) {
+      const start = (pagination.value.page - 1) * pageSize.value
+      return allCards.value.slice(start, start + pageSize.value)
+    }
+    return cards.value
+  }
   const start = (filteredPage.value - 1) * pageSize.value
   return filteredAll.value.slice(start, start + pageSize.value)
 })
@@ -503,10 +372,6 @@ const loadFilteredPage = (page) => {
 }
 
 // reset filtered page when filters change
-watch(filters, () => {
-  filteredPage.value = 1
-})
-
 const onFilterChange = () => {
   try {
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters.value))
@@ -522,29 +387,10 @@ const resetFilters = () => {
   } catch (e) {}
 }
 
-const toggleRarity = (r) => {
-  const idx = filters.value.rarities.indexOf(r)
-  if (idx === -1) filters.value.rarities.push(r)
-  else filters.value.rarities.splice(idx, 1)
+watch(filters, () => {
+  filteredPage.value = 1
   onFilterChange()
-}
-
-const clearRarities = () => {
-  filters.value.rarities = []
-  onFilterChange()
-}
-
-const toggleType = (t) => {
-  const idx = filters.value.types.indexOf(t)
-  if (idx === -1) filters.value.types.push(t)
-  else filters.value.types.splice(idx, 1)
-  onFilterChange()
-}
-
-const clearTypes = () => {
-  filters.value.types = []
-  onFilterChange()
-}
+}, { deep: true })
 
 watch(cards, () => {
   // If cards change (page change or fresh fetch), ensure filters persisted keys exist
@@ -735,7 +581,12 @@ const fetchAllCards = async (pages) => {
 
 const loadPage = (page) => {
   if (page >= 1 && page <= pagination.value.pages) {
-    fetchCards(page)
+    if (allCards.value.length > 0) {
+      pagination.value.page = page
+      localStorage.setItem(`setPage-${route.params.id}`, String(page))
+    } else {
+      fetchCards(page)
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 }
@@ -970,151 +821,6 @@ onMounted(() => {
   margin-bottom: 2rem;
 }
 
-.cards-filters {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.filter-input {
-  padding: 0.5rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.02);
-  color: #fff;
-  min-width: 180px;
-}
-
-.filter-select {
-  padding: 0.45rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.02);
-  color: #fff;
-}
-
-.filters-loading {
-  color: rgba(255,255,255,0.6);
-  font-size: 0.85rem;
-  margin-left: 0.5rem;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-left: 0.5rem;
-}
-
-.filter-group__label {
-  font-size: 0.75rem;
-  color: rgba(255,255,255,0.6);
-}
-
-.filter-pills {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.filter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 999px;
-  border: 2px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.02);
-  color: #fff;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.filter-pill--active {
-  border-color: rgba(255,255,255,0.9);
-  background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-}
-
-.pill-count {
-  background: rgba(0,0,0,0.4);
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  color: #fff;
-}
-
-.pill-icon {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.06);
-}
-
-.pill-icon-img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  display: inline-block;
-}
-
-/* New layout styles */
-.cards-filters {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.filters-left {
-  min-width: 220px;
-}
-
-.filters-right {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.filter-row__title {
-  color: rgba(255,255,255,0.6);
-  font-size: 0.78rem;
-  min-width: 68px;
-}
-
-.filter-pill--all {
-  opacity: 0.9;
-}
-
-.filter-pill svg { color: rgba(255,255,255,0.85); }
-
-.scroll-x {
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.filter-pills::-webkit-scrollbar { height: 8px; }
-.filter-pills::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 8px; }
-
-.filters-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-@media (max-width: 880px) {
-  .cards-filters { grid-template-columns: 1fr; }
-  .filters-right { flex-direction: column; }
-  .filter-row__title { min-width: 54px; }
-}
 
 .eyebrow {
   letter-spacing: 0.35em;
