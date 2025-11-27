@@ -23,10 +23,10 @@ class TCGdexSyncService {
         try {
             // 1. Synchroniser les séries
             await this.syncSeries();
-            
+
             // 2. Synchroniser les sets
             await this.syncSets();
-            
+
             // 3. Synchroniser les cartes
             await this.syncCards();
 
@@ -49,14 +49,14 @@ class TCGdexSyncService {
         console.log('\n📚 Synchronisation des séries...');
         try {
             const seriesList = await this.tcgdex.serie.list();
-            
+
             for (const serieResume of seriesList) {
                 try {
                     // Récupérer les détails complets de la série
                     const serieData = await this.tcgdex.serie.get(serieResume.id);
-                    
+
                     // Filtrer les séries TCGP, Kit du Dresseur et McDonald's
-                    if (serieData.id === 'tcgp' || 
+                    if (serieData.id === 'tcgp' ||
                         serieData.id === 'tk' ||
                         serieData.id === 'mc' ||
                         serieData.id?.toLowerCase().includes('tcgp') ||
@@ -64,10 +64,12 @@ class TCGdexSyncService {
                         (serieData.name && serieData.name.toLowerCase().includes('kit')) ||
                         (serieData.name && serieData.name.toLowerCase().includes('mcdonald')) ||
                         (serieData.logo && serieData.logo.includes('/tcgp/'))) {
+                        // Supprimer la série si elle existe déjà
+                        await Serie.deleteOne({ id: serieData.id });
                         // Ignorer les séries exclues
                         continue;
                     }
-                    
+
                     await Serie.findOneAndUpdate(
                         { id: serieData.id },
                         {
@@ -77,7 +79,7 @@ class TCGdexSyncService {
                         },
                         { upsert: true, new: true }
                     );
-                    
+
                     this.stats.series.imported++;
                     process.stdout.write(`\r   Séries importées: ${this.stats.series.imported}`);
                 } catch (error) {
@@ -85,7 +87,7 @@ class TCGdexSyncService {
                     console.error(`\n   ❌ Erreur série ${serieResume.id}:`, error.message);
                 }
             }
-            
+
             console.log(`\n   ✅ ${this.stats.series.imported} séries synchronisées`);
         } catch (error) {
             console.error('   ❌ Erreur lors de la récupération des séries:', error);
@@ -100,12 +102,12 @@ class TCGdexSyncService {
         console.log('\n📦 Synchronisation des sets...');
         try {
             const setsList = await this.tcgdex.set.list();
-            
+
             for (const setResume of setsList) {
                 try {
                     // Récupérer les détails complets du set
                     const setData = await this.tcgdex.set.get(setResume.id);
-                    
+
                     // Filtrer les sets TCGP (Pokémon Trading Card Game Pocket), Kits du Dresseur et McDonald's
                     if (setData.id?.toLowerCase().includes('tcgp') ||
                         setData.id?.toLowerCase().startsWith('tk') ||
@@ -116,10 +118,12 @@ class TCGdexSyncService {
                         (setData.logo && setData.logo.includes('/tcgp/')) ||
                         (setData.symbol && setData.symbol.includes('/tcgp/')) ||
                         (setData.serie && (setData.serie.id === 'tcgp' || setData.serie.id === 'tk' || setData.serie.id === 'mc'))) {
+                        // Supprimer le set s'il existe déjà
+                        await Set.deleteOne({ id: setData.id });
                         // Ignorer les sets exclus
                         continue;
                     }
-                    
+
                     await Set.findOneAndUpdate(
                         { id: setData.id },
                         {
@@ -134,7 +138,7 @@ class TCGdexSyncService {
                         },
                         { upsert: true, new: true }
                     );
-                    
+
                     this.stats.sets.imported++;
                     process.stdout.write(`\r   Sets importés: ${this.stats.sets.imported}`);
                 } catch (error) {
@@ -142,7 +146,7 @@ class TCGdexSyncService {
                     console.error(`\n   ❌ Erreur set ${setResume.id}:`, error.message);
                 }
             }
-            
+
             console.log(`\n   ✅ ${this.stats.sets.imported} sets synchronisés`);
         } catch (error) {
             console.error('   ❌ Erreur lors de la récupération des sets:', error);
@@ -157,17 +161,30 @@ class TCGdexSyncService {
         console.log('\n🃏 Synchronisation des cartes...');
         try {
             const cardsList = await this.tcgdex.card.list();
-            
+
             const batchSize = 50; // Traiter par lots pour éviter la surcharge
             for (let i = 0; i < cardsList.length; i += batchSize) {
                 const batch = cardsList.slice(i, i + batchSize);
-                
+
                 await Promise.all(batch.map(async (cardResume) => {
                     try {
                         // Récupérer les détails complets de la carte
                         const cardData = await this.tcgdex.card.get(cardResume.id);
-                        
+
                         // Filtrer les cartes TCGP, Kit du Dresseur et McDonald's
+                        const excludedRarities = [
+                            'un diamant',
+                            'deux diamants',
+                            'trois diamants',
+                            'quatre diamants',
+                            'une étoile',
+                            'deux étoiles',
+                            'trois étoiles',
+                            'un chromatique',
+                            'deux chromatiques',
+                            'couronne'
+                        ];
+
                         if ((cardData.image && cardData.image.includes('/tcgp/')) ||
                             (cardData.set && cardData.set.id && cardData.set.id.toLowerCase().includes('tcgp')) ||
                             (cardData.set && cardData.set.id && cardData.set.id.toLowerCase().startsWith('tk')) ||
@@ -175,11 +192,14 @@ class TCGdexSyncService {
                             (cardData.set && cardData.set.name && cardData.set.name.toLowerCase().includes('pocket')) ||
                             (cardData.set && cardData.set.name && cardData.set.name.toLowerCase().includes('kit')) ||
                             (cardData.set && cardData.set.name && cardData.set.name.toLowerCase().includes('mcdonald')) ||
-                            (cardData.set && cardData.set.serie && (cardData.set.serie.id === 'tcgp' || cardData.set.serie.id === 'tk' || cardData.set.serie.id === 'mc'))) {
+                            (cardData.set && cardData.set.serie && (cardData.set.serie.id === 'tcgp' || cardData.set.serie.id === 'tk' || cardData.set.serie.id === 'mc')) ||
+                            (cardData.rarity && excludedRarities.includes(cardData.rarity.toLowerCase()))) {
+                            // Supprimer la carte si elle existe déjà
+                            await Card.deleteOne({ id: cardData.id });
                             // Ignorer les cartes exclues
                             return;
                         }
-                        
+
                         await Card.findOneAndUpdate(
                             { id: cardData.id },
                             {
@@ -209,17 +229,17 @@ class TCGdexSyncService {
                             },
                             { upsert: true, new: true }
                         );
-                        
+
                         this.stats.cards.imported++;
                     } catch (error) {
                         this.stats.cards.errors++;
                         console.error(`\n   ❌ Erreur carte ${cardResume.id}:`, error.message);
                     }
                 }));
-                
+
                 process.stdout.write(`\r   Cartes importées: ${this.stats.cards.imported}/${cardsList.length}`);
             }
-            
+
             console.log(`\n   ✅ ${this.stats.cards.imported} cartes synchronisées`);
         } catch (error) {
             console.error('   ❌ Erreur lors de la récupération des cartes:', error);

@@ -434,7 +434,7 @@ const fetchCards = async () => {
       // Mode recherche normale
       if (searchQuery.value) {
         params.append('name', searchQuery.value)
-        params.append('limit', '500')
+        params.append('limit', '2000')
       } else {
         params.append('limit', '100')
       }

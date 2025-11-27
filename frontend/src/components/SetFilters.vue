@@ -26,16 +26,16 @@
           </button>
 
           <button
-            v-for="r in availableRarities"
+            v-for="r in sortedRarities"
             :key="r"
             class="filter-pill"
-            :class="{ 'filter-pill--active': modelValue.rarities.includes(r) }"
+            :class="{ 'filter-pill--active': isRarityGroupActive(r) }"
             @click="() => toggleRarity(r)"
             :title="`Filtrer par ${r}`"
           >
             <img v-if="getRarityIcon(r)" :src="getRarityIcon(r)" :alt="r" class="pill-icon-img" />
             <span class="pill-label" v-else>{{ r }}</span>
-            <span class="pill-count">{{ rarityCounts[r] || 0 }}</span>
+            <span class="pill-count">{{ groupedRarityCounts[r] || 0 }}</span>
           </button>
         </div>
       </div>
@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue'
+import { defineProps, defineEmits, computed } from 'vue'
 
 const props = defineProps({
   modelValue: {
@@ -113,6 +113,28 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'reset'])
 
+// Ordre préféré pour les raretés (normalisé)
+// Basé sur la hiérarchie officielle du TCG Pokémon
+const preferredRarityOrder = [
+  'sans rarete',
+  'commune',
+  'peu commune',
+  'rare',                          // Rare (incluant Holo Rare)
+  'shiny rare',                     // Shiny Rare (Shining Fates)
+  'radieux rare',                   // Radiant Rare (Astral Radiance)
+  'holo rare v',                    // V, VMAX, VSTAR groupés
+  'double rare',                    // Double Rare (Pokémon ex)
+  'rare prime',                     // Rare Prime (HGSS)
+  'rare holo lv x',                 // Rare Holo LV.X (DP)
+  'legende',                        // LEGEND (HGSS)
+  'illustration rare',              // Illustration Rare (SV)
+  'ultra rare',                     // Ultra Rare (Full Art ex, Supporters)
+  'shiny ultra rare',               // Shiny Ultra Rare (Paldean Fates)
+  'illustration speciale rare',     // Special Illustration Rare (SV)
+  'hyper rare',                     // Hyper Rare (SV)
+  'mega hyper rare',                // Mega Hyper Rare
+]
+
 // Import all rarity/type icons via Vite glob (use eager option for compatibility)
 const rarityModules = import.meta.glob('../assets/rarity/*', { eager: true })
 const typeModules = import.meta.glob('../assets/type/*', { eager: true })
@@ -126,6 +148,116 @@ const normalizeKey = (s) => {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase()
+}
+
+// Alias mapping for rarity grouping and icon resolution
+// Groupe les variantes d'une même rareté ensemble
+const rarityAliases = {
+  // Variantes de Rare
+  'holo rare': 'rare',
+  'rare holo': 'rare',
+  'holo': 'rare',
+  
+  // Famille V (V, VMAX, VSTAR)
+  'holo rare vmax': 'holo rare v',
+  'holo rare vstar': 'holo rare v',
+  'shiny rare v': 'holo rare v',
+  'shiny rare vmax': 'holo rare v',
+  'shiny rare vstar': 'holo rare v',
+  
+  // Ultra Rare variants
+  'dresseur full art': 'ultra rare',
+  'supporter full art': 'ultra rare',
+
+  // Shiny rare variants
+  'radieux rare': 'shiny rare',
+  'chromatique rare': 'shiny rare',
+  
+  // Shiny Ultra Rare variants
+  'chromatique ultra rare': 'shiny ultra rare',
+  
+  // Autres alias
+  'rare holo lvx': 'rare holo lv x',
+  'magnifique': 'magnifique rare',
+  'rare prime': 'legende'
+}
+
+// Get the canonical rarity for grouping purposes
+const getCanonicalRarity = (rarity) => {
+  if (!rarity) return rarity
+  const normalized = normalizeKey(rarity)
+  
+  // Check if this rarity has an alias
+  for (const [from, to] of Object.entries(rarityAliases)) {
+    if (normalized === normalizeKey(from)) {
+      return to
+    }
+  }
+  
+  return rarity
+}
+
+// Build rarity groups: canonical rarity -> array of all rarities that map to it
+const rarityGroups = computed(() => {
+  const groups = new Map()
+  
+  for (const rarity of props.availableRarities) {
+    const canonical = getCanonicalRarity(rarity)
+    const normalizedCanonical = normalizeKey(canonical)
+    
+    if (!groups.has(normalizedCanonical)) {
+      groups.set(normalizedCanonical, {
+        canonical,
+        members: []
+      })
+    }
+    
+    groups.get(normalizedCanonical).members.push(rarity)
+  }
+  
+  return groups
+})
+
+// Get unique canonical rarities for display
+const sortedRarities = computed(() => {
+  const canonicalRarities = Array.from(rarityGroups.value.values()).map(g => g.canonical)
+  
+  return canonicalRarities.sort((a, b) => {
+    const na = normalizeKey(a)
+    const nb = normalizeKey(b)
+    const ia = preferredRarityOrder.indexOf(na)
+    const ib = preferredRarityOrder.indexOf(nb)
+
+    if (ia !== -1 && ib !== -1) return ia - ib
+    if (ia !== -1) return -1
+    if (ib !== -1) return 1
+    return na.localeCompare(nb)
+  })
+})
+
+// Aggregate counts for grouped rarities
+const groupedRarityCounts = computed(() => {
+  const counts = {}
+  
+  for (const [normalizedCanonical, group] of rarityGroups.value.entries()) {
+    let total = 0
+    for (const member of group.members) {
+      total += (props.rarityCounts[member] || 0)
+    }
+    counts[group.canonical] = total
+  }
+  
+  return counts
+})
+
+// Check if a rarity group is active
+const isRarityGroupActive = (canonical) => {
+  const normalizedCanonical = normalizeKey(canonical)
+  const group = rarityGroups.value.get(normalizedCanonical)
+  
+  if (!group) return false
+  
+  return group.members.some(member => props.modelValue.rarities.includes(member))
 }
 
 const rarityIconMap = {}
@@ -155,18 +287,10 @@ const getRarityIcon = (label) => {
     if (rarityIconMap[canon]) return rarityIconMap[canon]
   }
 
-  const aliases = {
-    'holo rare': 'rare',
-    'rare holo': 'holo rare',
-    'holo': 'rare',
-    'holo rare vmax': 'holo rare v',
-    'holo rare vstar': 'holo rare v',
-    'rare prime': 'illustration rare',
-    'legende': 'illustration speciale rare'
-  }
-  for (const from in aliases) {
+  // Use the rarityAliases object for icon resolution
+  for (const from in rarityAliases) {
     if (key === normalizeKey(from)) {
-      const toKey = normalizeKey(aliases[from])
+      const toKey = normalizeKey(rarityAliases[from])
       if (rarityIconMap[toKey]) return rarityIconMap[toKey]
     }
   }
@@ -193,11 +317,32 @@ const updateQ = (val) => {
   emit('update:modelValue', { ...props.modelValue, q: val })
 }
 
-const toggleRarity = (r) => {
+const toggleRarity = (canonical) => {
+  const normalizedCanonical = normalizeKey(canonical)
+  const group = rarityGroups.value.get(normalizedCanonical)
+  
+  if (!group) return
+  
   const newRarities = [...props.modelValue.rarities]
-  const idx = newRarities.indexOf(r)
-  if (idx === -1) newRarities.push(r)
-  else newRarities.splice(idx, 1)
+  const anyActive = group.members.some(member => newRarities.includes(member))
+  
+  if (anyActive) {
+    // Remove all members of this group
+    for (const member of group.members) {
+      const idx = newRarities.indexOf(member)
+      if (idx !== -1) {
+        newRarities.splice(idx, 1)
+      }
+    }
+  } else {
+    // Add all members of this group
+    for (const member of group.members) {
+      if (!newRarities.includes(member)) {
+        newRarities.push(member)
+      }
+    }
+  }
+  
   emit('update:modelValue', { ...props.modelValue, rarities: newRarities })
 }
 

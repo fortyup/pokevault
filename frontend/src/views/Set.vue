@@ -241,51 +241,13 @@ const availableTypes = computed(() => {
   return arr
 })
 
-// Ordre préféré pour les raretés (normalisé)
-const preferredRarityOrder = [
-  'commune',
-  'peu commune',
-  'rare',
-  'holo rare',
-  'rare holo',
-  'holo rare v',
-  'holo rare vmax',
-  'holo rare vstar',
-  'double rare',
-  'illustration rare',
-  'ultra rare',
-  'illustration speciale rare',
-  'hyper rare',
-  'rare noir blanc',
-  'mega hyper rare',
-  'high tech rare',
-  'rare prime',
-  'legende',
-  'rare holo lv.x',
-]
-
 const availableRarities = computed(() => {
   const source = (allCards.value && allCards.value.length) ? allCards.value : cards.value
   const setR = new Set()
   for (const c of source) {
     if (c.rarity) setR.add(c.rarity)
   }
-
-  const arr = Array.from(setR)
-  // Trier selon preferredRarityOrder (après normalisation), puis alphabétiquement
-  arr.sort((a, b) => {
-    const na = normalizeKey(a)
-    const nb = normalizeKey(b)
-    const ia = preferredRarityOrder.indexOf(na)
-    const ib = preferredRarityOrder.indexOf(nb)
-
-    if (ia !== -1 && ib !== -1) return ia - ib
-    if (ia !== -1) return -1
-    if (ib !== -1) return 1
-    return na.localeCompare(nb)
-  })
-
-  return arr
+  return Array.from(setR)
 })
 
 const rarityCounts = computed(() => {

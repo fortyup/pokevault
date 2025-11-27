@@ -175,7 +175,7 @@ router.get('/', async (req, res) => {
             sort = 'name'
         } = req.query;
 
-        const limitNumber = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 500);
+        const limitNumber = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 10000);
         const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
         const skip = (pageNumber - 1) * limitNumber;
 
@@ -410,7 +410,7 @@ router.get('/metadata', async (_req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const card = await Card.findOne({ id: req.params.id }).select('-__v');
-        
+
         if (!card) {
             return res.status(404).json({
                 success: false,
